@@ -3,22 +3,51 @@ import 'page-song-detail.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
-
   @override
   State<HomePage> createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
   List<Map<String, dynamic>> localSongs = [
-    {'title': 'Desert Melody', 'artist': 'Ali Reza', 'cover': 'assets/images/default_cover.png'},
-    {'title': 'Night Vibes', 'artist': 'Sara Nouri', 'cover': 'assets/images/default_cover.png'},
-    {'title': 'Sunrise Tune', 'artist': 'Mehrdad', 'cover': 'assets/images/default_cover.png'},
+    {
+      'title': 'Bad Az To',
+      'artist': 'Mohsen Chavoshi',
+      'cover': 'assets/images/photo_2025-05-14_20-51-35.jpg',
+      'file': 'assets/music/Mohsen Chavoshi - Bad Az To (320).mp3',
+    },
+    {
+      'title': 'ZendanBan',
+      'artist': 'Mohsen Chavoshi',
+      'cover': 'assets/images/Mohsen-Chavoshi-Collection.jpg',
+      'file': 'assets/music/Mohsen Chavoshi - Zendan Ban (320).mp3',
+    },
+    {
+      'title': 'Bekham Az To Begzaram Man',
+      'artist': 'Mohsen Chavoshi',
+      'cover': 'assets/images/Screenshot-2025-04-15-121400.jpg',
+      'file': 'assets/music/Mohsen Chavoshi - Bekham Az To Begzaram Man (320).mp3',
+    },
   ];
 
   List<Map<String, dynamic>> downloadedSongs = [
-    {'title': 'Ocean Sounds', 'artist': 'DJ Wave', 'cover': 'assets/images/default_cover.png'},
-    {'title': 'City Life', 'artist': 'Lily Beats', 'cover': 'assets/images/default_cover.png'},
-    {'title': 'Calm Piano', 'artist': 'RelaxMan', 'cover': 'assets/images/default_cover.png'},
+    {
+      'title': 'Ocean Sounds',
+      'artist': 'DJ Wave',
+      'cover': 'assets/images/photo_2025-05-14_20-51-35.jpg',
+      'file': 'assets/music/Mohsen Chavoshi - Bad Az To (320).mp3',
+    },
+    {
+      'title': 'City Life',
+      'artist': 'Lily Beats',
+      'cover': 'assets/images/photo_2025-05-14_20-51-35.jpg',
+      'file': 'assets/music/Mohsen Chavoshi - Bad Az To (320).mp3',
+    },
+    {
+      'title': 'Calm Piano',
+      'artist': 'RelaxMan',
+      'cover': 'assets/images/photo_2025-05-14_20-51-35.jpg',
+      'file': 'assets/music/Mohsen Chavoshi - Bad Az To (320).mp3',
+    },
   ];
 
   String searchQuery = '';
@@ -68,7 +97,8 @@ class _HomePageState extends State<HomePage> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          const Text('Local Songs', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const Text('Local Songs',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           ...filteredLocal.map((song) => Card(
             elevation: 1,
             color: Colors.cyan.withOpacity(0.08),
@@ -88,23 +118,25 @@ class _HomePageState extends State<HomePage> {
             ),
           )),
           const SizedBox(height: 18),
-          const Text('Downloaded Songs', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const Text('Downloaded Songs',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           ...filteredDownloaded.map((song) => Card(
             elevation: 1,
             color: Colors.cyan.withOpacity(0.08),
             margin: const EdgeInsets.symmetric(vertical: 4),
             child: ListTile(
-              leading: const Icon(Icons.download, color: Colors.cyan),
+              leading: const Icon(Icons.music_note, color: Colors.cyan),
               title: Text(song['title']),
               subtitle: Text(song['artist']),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => SongDetailPage(song: song),
-                  ),
-                );
-              },
+              // هیچ اتفاقی موقع کلیک روی tile نمی‌افتد
+              onTap: null,
+              // دکمه دانلود بدون واکنش
+              trailing: IconButton(
+                icon: const Icon(Icons.download, color: Colors.cyan),
+                onPressed: () {
+                  // هیچ اتفاقی نمی‌افتد
+                },
+              ),
             ),
           )),
         ],

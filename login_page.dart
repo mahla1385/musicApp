@@ -8,9 +8,43 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final _usernameOrEmailController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _passwordVisible = false;
+
+  String? _validateEmail(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Email is required';
+    }
+    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+    if (!emailRegex.hasMatch(value)) {
+      return 'Enter a valid email';
+    }
+    return null;
+  }
+
+  String? _validatePassword(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Password is required';
+    }
+    if (value.length < 8) {
+      return 'Password must be at least 8 characters';
+    }
+    final hasUpper = RegExp(r'[A-Z]');
+    final hasLower = RegExp(r'[a-z]');
+    final hasDigit = RegExp(r'\d');
+    if (!hasUpper.hasMatch(value)) {
+      return 'Password must contain at least one uppercase letter';
+    }
+    if (!hasLower.hasMatch(value)) {
+      return 'Password must contain at least one lowercase letter';
+    }
+    if (!hasDigit.hasMatch(value)) {
+      return 'Password must contain at least one digit';
+    }
+    return null;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -18,63 +52,72 @@ class _LoginPageState extends State<LoginPage> {
       appBar: AppBar(title: const Text('Login')),
       body: Padding(
         padding: const EdgeInsets.all(24.0),
-        child: ListView(
-          children: [
-            const SizedBox(height: 40),
-            const Text(
-              'Welcome Back!',
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 36),
-            TextField(
-              controller: _usernameOrEmailController,
-              decoration: const InputDecoration(
-                labelText: 'Username or Email',
-                prefixIcon: Icon(Icons.person),
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            children: [
+              const SizedBox(height: 40),
+              const Text(
+                'Welcome Back!',
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
               ),
-            ),
-            const SizedBox(height: 18),
-            TextField(
-              controller: _passwordController,
-              obscureText: !_passwordVisible,
-              decoration: InputDecoration(
-                labelText: 'Password',
-                prefixIcon: const Icon(Icons.lock),
-                suffixIcon: IconButton(
-                  icon: Icon(
-                      _passwordVisible ? Icons.visibility : Icons.visibility_off),
+              const SizedBox(height: 36),
+              TextFormField(
+                controller: _emailController,
+                decoration: const InputDecoration(
+                  labelText: 'Email',
+                  prefixIcon: Icon(Icons.email),
+                ),
+                keyboardType: TextInputType.emailAddress,
+                validator: _validateEmail,
+              ),
+              const SizedBox(height: 18),
+              TextFormField(
+                controller: _passwordController,
+                obscureText: !_passwordVisible,
+                decoration: InputDecoration(
+                  labelText: 'Password',
+                  prefixIcon: const Icon(Icons.lock),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                        _passwordVisible ? Icons.visibility : Icons.visibility_off),
+                    onPressed: () {
+                      setState(() => _passwordVisible = !_passwordVisible);
+                    },
+                  ),
+                ),
+                validator: _validatePassword,
+              ),
+              const SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
                   onPressed: () {
-                    setState(() => _passwordVisible = !_passwordVisible);
+                    // TODO: forgot password logic
                   },
+                  child: const Text('Forgot Password?'),
                 ),
               ),
-            ),
-            const SizedBox(height: 10),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
+              const SizedBox(height: 20),
+              ElevatedButton(
                 onPressed: () {
-                  // TODO: forgot password logic
+                  if (_formKey.currentState?.validate() ?? false) {
+                    Navigator.pushReplacementNamed(context, '/home');
+                  }
+                  // else: error hints will be shown automatically by the validators
                 },
-                child: const Text('Forgot Password?'),
+                child: const Text('Login'),
               ),
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pushReplacementNamed(context, '/home');
-              },
-              child: const Text('Login'),
-            ),
-            const SizedBox(height: 16),
-            OutlinedButton(
-              onPressed: () {
-                Navigator.pushNamed(context, '/signup');
-              },
-              child: const Text("Don't have an account? Sign up"),
-            ),
-          ],
+              const SizedBox(height: 16),
+              OutlinedButton(
+                onPressed: () {
+                  Navigator.pushNamed(context, '/signup');
+                },
+                child: const Text("Don't have an account? Sign up"),
+              ),
+            ],
+          ),
         ),
       ),
     );
