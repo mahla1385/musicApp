@@ -95,7 +95,11 @@ class _MusicShopPageState extends State<MusicShopPage> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => SongDetailPage(song: song),
+                      builder: (_) => SongDetailPage(
+                        song: song,
+                        favorites: const [], // مقدار خالی برای علاقه‌مندی‌ها
+                        onLike: (s) {},     // تابع خالی
+                      ),
                     ),
                   );
                 }

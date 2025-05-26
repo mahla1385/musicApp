@@ -10,7 +10,7 @@ class AccountPage extends StatelessWidget {
       'username': 'testUser',
       'email': 'testUser@example.com',
       'avatar': 'assets/images/default_avatar.png',
-      'premium': true,
+      'premium': false,
     };
 
     return Scaffold(

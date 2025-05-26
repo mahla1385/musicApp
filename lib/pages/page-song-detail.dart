@@ -4,8 +4,15 @@ import 'package:rxdart/rxdart.dart';
 
 class SongDetailPage extends StatefulWidget {
   final Map<String, dynamic> song;
+  final List<Map<String, dynamic>> favorites;
+  final Function(Map<String, dynamic>) onLike;
 
-  const SongDetailPage({Key? key, required this.song}) : super(key: key);
+  const SongDetailPage({
+    Key? key,
+    required this.song,
+    required this.favorites,
+    required this.onLike,
+  }) : super(key: key);
 
   @override
   State<SongDetailPage> createState() => _SongDetailPageState();
@@ -15,14 +22,17 @@ class _SongDetailPageState extends State<SongDetailPage> {
   late AudioPlayer _player;
   bool isPlaying = false;
 
-  final Color backgroundColor = const Color(0xFF1E1E1E);
-  final Color accentColor = const Color(0xFF00E5FF);
-
   @override
   void initState() {
     super.initState();
     _player = AudioPlayer();
     _init();
+  }
+
+  @override
+  void dispose() {
+    _player.dispose();
+    super.dispose();
   }
 
   Future<void> _init() async {
@@ -33,10 +43,8 @@ class _SongDetailPageState extends State<SongDetailPage> {
     }
   }
 
-  @override
-  void dispose() {
-    _player.dispose();
-    super.dispose();
+  bool get isLiked {
+    return widget.favorites.any((song) => song['title'] == widget.song['title']);
   }
 
   void _togglePlayPause() {
@@ -49,12 +57,20 @@ class _SongDetailPageState extends State<SongDetailPage> {
     }
   }
 
+  void _toggleLike() {
+    widget.onLike(widget.song);
+    setState(() {}); // بروزرسانی UI
+  }
+
   Stream<DurationState> get _durationStateStream =>
       Rx.combineLatest2<Duration, void, DurationState>(
         _player.positionStream,
         Stream.periodic(const Duration(milliseconds: 500)),
             (position, _) => DurationState(position, _player.duration ?? Duration.zero),
       );
+
+  final Color backgroundColor = const Color(0xFF1E1E1E);
+  final Color accentColor = const Color(0xFF00E5FF);
 
   @override
   Widget build(BuildContext context) {
@@ -68,6 +84,16 @@ class _SongDetailPageState extends State<SongDetailPage> {
           widget.song['title']!,
           style: TextStyle(color: accentColor, fontWeight: FontWeight.bold),
         ),
+        actions: [
+          IconButton(
+            icon: Icon(
+              isLiked ? Icons.favorite : Icons.favorite_border,
+              color: isLiked ? Colors.red : Colors.white,
+            ),
+            tooltip: "Like",
+            onPressed: _toggleLike,
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(20),
@@ -138,6 +164,23 @@ class _SongDetailPageState extends State<SongDetailPage> {
                   onPressed: () => _player.seek(_player.duration ?? Duration.zero),
                 ),
               ],
+            ),
+            const SizedBox(height: 20),
+            TextButton.icon(
+              onPressed: _toggleLike,
+              icon: Icon(
+                isLiked ? Icons.favorite : Icons.favorite_border,
+                color: isLiked ? Colors.red : Colors.grey,
+              ),
+              label: Text(
+                isLiked ? "Liked" : "Like",
+                style: TextStyle(color: isLiked ? Colors.red : Colors.white),
+              ),
+              style: TextButton.styleFrom(
+                backgroundColor: backgroundColor.withOpacity(0.3),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+              ),
             ),
           ],
         ),
