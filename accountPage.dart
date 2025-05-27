@@ -12,12 +12,13 @@ class AccountPage extends StatelessWidget {
     final String email = (args?['email']?.toString().isNotEmpty ?? false)
         ? args!['email']
         : 'Unknown Email';
+    final bool premium = args?['premium'] == true;
 
     final Map<String, dynamic> user = {
       'username': username,
       'email': email,
       'avatar': 'assets/images/default_avatar.png',
-      'premium': false,
+      'premium': premium,
     };
 
     return Scaffold(
@@ -78,6 +79,7 @@ class AccountPage extends StatelessWidget {
                 arguments: {
                   'username': username,
                   'email': email,
+                  'premium': premium,
                 });
           } else if (index == 1) {
             Navigator.pushReplacementNamed(context, '/musicshop');

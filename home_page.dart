@@ -57,13 +57,13 @@ class _HomePageState extends State<HomePage> {
   int _navIndex = 0;
   bool _isSortedAZ = true;
 
-  // ---- NEW: Store username & email passed from login ----
+  // اضافه: نگهداری اطلاعات کاربر
   String username = 'User';
   String email = 'No email';
+  bool premium = false;
 
   @override
   void didChangeDependencies() {
-    // دریافت یوزرنیم و ایمیل از login
     final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
     if (args != null) {
       if (args['username'] != null && args['username'].toString().isNotEmpty) {
@@ -71,6 +71,9 @@ class _HomePageState extends State<HomePage> {
       }
       if (args['email'] != null && args['email'].toString().isNotEmpty) {
         email = args['email'];
+      }
+      if (args['premium'] != null) {
+        premium = args['premium'] == true;
       }
     }
     super.didChangeDependencies();
@@ -159,7 +162,8 @@ class _HomePageState extends State<HomePage> {
           const Text('Local Songs',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           ...filteredLocal.map((song) => ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 2),
+            contentPadding:
+            const EdgeInsets.symmetric(horizontal: 0, vertical: 2),
             leading: CircleAvatar(
               backgroundImage: AssetImage(song['cover']),
               radius: 22,
@@ -194,7 +198,8 @@ class _HomePageState extends State<HomePage> {
           const Text('Downloaded Songs',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           ...filteredDownloaded.map((song) => ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 2),
+            contentPadding:
+            const EdgeInsets.symmetric(horizontal: 0, vertical: 2),
             leading: CircleAvatar(
               backgroundImage: AssetImage(song['cover']),
               radius: 22,
@@ -223,7 +228,7 @@ class _HomePageState extends State<HomePage> {
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed, // نمایش label زیر آیکون‌ها
+        type: BottomNavigationBarType.fixed,
         currentIndex: _navIndex,
         selectedItemColor: Colors.cyan[700],
         unselectedItemColor: Colors.grey[600],
@@ -235,13 +240,13 @@ class _HomePageState extends State<HomePage> {
           if (index == 1) {
             Navigator.pushReplacementNamed(context, '/musicshop');
           } else if (index == 2) {
-            // هنگام رفتن به account اطلاعات کاربر را ارسال کن
             Navigator.pushReplacementNamed(
               context,
               '/account',
               arguments: {
                 'username': username,
                 'email': email,
+                'premium': premium,
               },
             );
           } else if (index == 3) {

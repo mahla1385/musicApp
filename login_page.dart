@@ -15,6 +15,7 @@ class _LoginPageState extends State<LoginPage> {
 
   String? _usernameFromSignup;
   String? _emailFromSignup;
+  bool _isPremium = false;
 
   @override
   void didChangeDependencies() {
@@ -105,6 +106,28 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 validator: _validatePassword,
               ),
+              const SizedBox(height: 18),
+              const Text('Account Type:', style: TextStyle(fontWeight: FontWeight.bold)),
+              RadioListTile<bool>(
+                title: const Text('Free'),
+                value: false,
+                groupValue: _isPremium,
+                onChanged: (val) {
+                  setState(() {
+                    _isPremium = val!;
+                  });
+                },
+              ),
+              RadioListTile<bool>(
+                title: const Text('Premium'),
+                value: true,
+                groupValue: _isPremium,
+                onChanged: (val) {
+                  setState(() {
+                    _isPremium = val!;
+                  });
+                },
+              ),
               const SizedBox(height: 10),
               Align(
                 alignment: Alignment.centerRight,
@@ -125,6 +148,7 @@ class _LoginPageState extends State<LoginPage> {
                       arguments: {
                         'username': _usernameFromSignup ?? '',
                         'email': _emailController.text.trim(),
+                        'premium': _isPremium,
                       },
                     );
                   }
