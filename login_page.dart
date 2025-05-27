@@ -13,6 +13,22 @@ class _LoginPageState extends State<LoginPage> {
   final _passwordController = TextEditingController();
   bool _passwordVisible = false;
 
+  String? _usernameFromSignup;
+  String? _emailFromSignup;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    if (args != null) {
+      _usernameFromSignup = args['username'];
+      _emailFromSignup = args['email'];
+      if (_emailFromSignup != null && _emailController.text.isEmpty) {
+        _emailController.text = _emailFromSignup!;
+      }
+    }
+  }
+
   String? _validateEmail(String? value) {
     if (value == null || value.isEmpty) {
       return 'Email is required';
@@ -103,16 +119,22 @@ class _LoginPageState extends State<LoginPage> {
               ElevatedButton(
                 onPressed: () {
                   if (_formKey.currentState?.validate() ?? false) {
-                    Navigator.pushReplacementNamed(context, '/home');
+                    Navigator.pushReplacementNamed(
+                      context,
+                      '/home',
+                      arguments: {
+                        'username': _usernameFromSignup ?? '',
+                        'email': _emailController.text.trim(),
+                      },
+                    );
                   }
-                  // else: error hints will be shown automatically by the validators
                 },
                 child: const Text('Login'),
               ),
               const SizedBox(height: 16),
               OutlinedButton(
                 onPressed: () {
-                  Navigator.pushNamed(context, '/signup');
+                  Navigator.pushReplacementNamed(context, '/signup');
                 },
                 child: const Text("Don't have an account? Sign up"),
               ),

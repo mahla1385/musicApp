@@ -5,12 +5,19 @@ class AccountPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Sample user info; in real app, fetch from user profile/provider
+    final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    final String username = (args?['username']?.toString().isNotEmpty ?? false)
+        ? args!['username']
+        : 'Unknown User';
+    final String email = (args?['email']?.toString().isNotEmpty ?? false)
+        ? args!['email']
+        : 'Unknown Email';
+
     final Map<String, dynamic> user = {
-      'username': 'mali1385',
-      'email': 'mali1385@example.com',
+      'username': username,
+      'email': email,
       'avatar': 'assets/images/default_avatar.png',
-      'premium': true,
+      'premium': false,
     };
 
     return Scaffold(
@@ -67,7 +74,11 @@ class AccountPage extends StatelessWidget {
         unselectedItemColor: Colors.grey[600],
         onTap: (index) {
           if (index == 0) {
-            Navigator.pushReplacementNamed(context, '/home');
+            Navigator.pushReplacementNamed(context, '/home',
+                arguments: {
+                  'username': username,
+                  'email': email,
+                });
           } else if (index == 1) {
             Navigator.pushReplacementNamed(context, '/musicshop');
           }

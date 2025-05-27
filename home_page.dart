@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'page-song-detail.dart';
+import 'favorites-page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -50,8 +51,59 @@ class _HomePageState extends State<HomePage> {
     },
   ];
 
+  List<Map<String, dynamic>> favoriteSongs = [];
+
   String searchQuery = '';
   int _navIndex = 0;
+  bool _isSortedAZ = true;
+
+  // ---- NEW: Store username & email passed from login ----
+  String username = 'User';
+  String email = 'No email';
+
+  @override
+  void didChangeDependencies() {
+    // دریافت یوزرنیم و ایمیل از login
+    final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    if (args != null) {
+      if (args['username'] != null && args['username'].toString().isNotEmpty) {
+        username = args['username'];
+      }
+      if (args['email'] != null && args['email'].toString().isNotEmpty) {
+        email = args['email'];
+      }
+    }
+    super.didChangeDependencies();
+  }
+
+  void _sortSongsAZ() {
+    setState(() {
+      _isSortedAZ = !_isSortedAZ;
+      localSongs.sort((a, b) => _isSortedAZ
+          ? a['title'].toLowerCase().compareTo(b['title'].toLowerCase())
+          : b['title'].toLowerCase().compareTo(a['title'].toLowerCase()));
+      downloadedSongs.sort((a, b) => _isSortedAZ
+          ? a['title'].toLowerCase().compareTo(b['title'].toLowerCase())
+          : b['title'].toLowerCase().compareTo(a['title'].toLowerCase()));
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    localSongs.sort((a, b) => a['title'].toLowerCase().compareTo(b['title'].toLowerCase()));
+    downloadedSongs.sort((a, b) => a['title'].toLowerCase().compareTo(b['title'].toLowerCase()));
+  }
+
+  void _handleLike(Map<String, dynamic> song) {
+    setState(() {
+      if (favoriteSongs.any((s) => s['title'] == song['title'])) {
+        favoriteSongs.removeWhere((s) => s['title'] == song['title']);
+      } else {
+        favoriteSongs.add(song);
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -70,10 +122,11 @@ class _HomePageState extends State<HomePage> {
         title: const Text('Home'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.sort),
-            onPressed: () {
-              // TODO: sort logic
-            },
+            icon: Icon(
+              _isSortedAZ ? Icons.sort_by_alpha : Icons.sort_by_alpha_outlined,
+            ),
+            onPressed: _sortSongsAZ,
+            tooltip: _isSortedAZ ? 'مرتب‌سازی (الف-ی)' : 'مرتب‌سازی (ی-الف)',
           ),
         ],
         bottom: PreferredSize(
@@ -97,66 +150,121 @@ class _HomePageState extends State<HomePage> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          Text(
+            'Welcome, $username!',
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 18),
           const Text('Local Songs',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          ...filteredLocal.map((song) => Card(
-            elevation: 1,
-            color: Colors.cyan.withOpacity(0.08),
-            margin: const EdgeInsets.symmetric(vertical: 4),
-            child: ListTile(
-              leading: const Icon(Icons.library_music, color: Colors.cyan),
-              title: Text(song['title']),
-              subtitle: Text(song['artist']),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => SongDetailPage(song: song),
-                  ),
-                );
-              },
+          ...filteredLocal.map((song) => ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 2),
+            leading: CircleAvatar(
+              backgroundImage: AssetImage(song['cover']),
+              radius: 22,
             ),
+            title: Text(song['title']),
+            subtitle: Text(song['artist']),
+            trailing: IconButton(
+              icon: Icon(
+                favoriteSongs.any((s) => s['title'] == song['title'])
+                    ? Icons.favorite
+                    : Icons.favorite_border,
+                color: favoriteSongs.any((s) => s['title'] == song['title'])
+                    ? Colors.red
+                    : Colors.grey,
+              ),
+              onPressed: () => _handleLike(song),
+            ),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => SongDetailPage(
+                    song: song,
+                    favorites: favoriteSongs,
+                    onLike: _handleLike,
+                  ),
+                ),
+              );
+            },
           )),
           const SizedBox(height: 18),
           const Text('Downloaded Songs',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          ...filteredDownloaded.map((song) => Card(
-            elevation: 1,
-            color: Colors.cyan.withOpacity(0.08),
-            margin: const EdgeInsets.symmetric(vertical: 4),
-            child: ListTile(
-              leading: const Icon(Icons.music_note, color: Colors.cyan),
-              title: Text(song['title']),
-              subtitle: Text(song['artist']),
-              // هیچ اتفاقی موقع کلیک روی tile نمی‌افتد
-              onTap: null,
-              // دکمه دانلود بدون واکنش
-              trailing: IconButton(
-                icon: const Icon(Icons.download, color: Colors.cyan),
-                onPressed: () {
-                  // هیچ اتفاقی نمی‌افتد
-                },
-              ),
+          ...filteredDownloaded.map((song) => ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 2),
+            leading: CircleAvatar(
+              backgroundImage: AssetImage(song['cover']),
+              radius: 22,
             ),
+            title: Text(song['title']),
+            subtitle: Text(song['artist']),
+            trailing: IconButton(
+              icon: const Icon(Icons.download, color: Colors.cyan),
+              onPressed: () {
+                // دانلود آهنگ
+              },
+            ),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => SongDetailPage(
+                    song: song,
+                    favorites: favoriteSongs,
+                    onLike: _handleLike,
+                  ),
+                ),
+              );
+            },
           )),
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
+        type: BottomNavigationBarType.fixed, // نمایش label زیر آیکون‌ها
         currentIndex: _navIndex,
         selectedItemColor: Colors.cyan[700],
         unselectedItemColor: Colors.grey[600],
         backgroundColor: Colors.grey[100],
         onTap: (index) {
+          setState(() {
+            _navIndex = index;
+          });
           if (index == 1) {
             Navigator.pushReplacementNamed(context, '/musicshop');
           } else if (index == 2) {
-            Navigator.pushReplacementNamed(context, '/account');
+            // هنگام رفتن به account اطلاعات کاربر را ارسال کن
+            Navigator.pushReplacementNamed(
+              context,
+              '/account',
+              arguments: {
+                'username': username,
+                'email': email,
+              },
+            );
+          } else if (index == 3) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => FavoritesPage(
+                  favorites: favoriteSongs,
+                  onLike: _handleLike,
+                ),
+              ),
+            );
           }
         },
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.store), label: 'Shop'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Account'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.home), label: 'Home'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.store), label: 'Shop'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.person), label: 'Account'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.favorite), label: 'Favorites'),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
