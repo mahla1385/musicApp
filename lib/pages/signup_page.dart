@@ -8,7 +8,7 @@ class SignUpPage extends StatefulWidget {
 }
 
 class _SignUpPageState extends State<SignUpPage> {
-  final _formKey = GlobalKey<FormState>();//دسترسی به وضعیت فرم
+  final _formKey = GlobalKey<FormState>();
   final _usernameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -135,7 +135,8 @@ class _SignUpPageState extends State<SignUpPage> {
                           : Icons.visibility_off,
                     ),
                     onPressed: () {
-                      setState(() => _confirmPasswordVisible = !_confirmPasswordVisible);
+                      setState(() =>
+                      _confirmPasswordVisible = !_confirmPasswordVisible);
                     },
                   ),
                 ),
@@ -145,12 +146,24 @@ class _SignUpPageState extends State<SignUpPage> {
               ElevatedButton(
                 onPressed: () {
                   if (_formKey.currentState?.validate() ?? false) {
-                    // TODO: perform registration logic here
-                    Navigator.pushReplacementNamed(context, '/login');
+                    Navigator.pushReplacementNamed(
+                      context,
+                      '/login',
+                      arguments: {
+                        'username': _usernameController.text.trim(),
+                        'email': _emailController.text.trim(),
+                      },
+                    );
                   }
-                  // else: error messages will be shown by validators
                 },
                 child: const Text('Register'),
+              ),
+              const SizedBox(height: 18),
+              OutlinedButton(
+                onPressed: () {
+                  Navigator.pushReplacementNamed(context, '/login');
+                },
+                child: const Text("Already have an account? Login"),
               ),
             ],
           ),

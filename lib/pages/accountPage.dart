@@ -5,13 +5,15 @@ class AccountPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Sample user info; in real app, fetch from user profile/provider
-    final Map<String, dynamic> user = {
-      'username': 'testUser',
-      'email': 'testUser@example.com',
-      'avatar': 'assets/images/default_avatar.png',
-      'premium': false,
-    };
+    final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+
+    final String username = (args?['username']?.toString().isNotEmpty ?? false)
+        ? args!['username']
+        : 'Unknown User';
+    final String email = (args?['email']?.toString().isNotEmpty ?? false)
+        ? args!['email']
+        : 'Unknown Email';
+    final bool premium = args?['premium'] == true;
 
     return Scaffold(
       appBar: AppBar(
@@ -23,27 +25,27 @@ class AccountPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            CircleAvatar(
-              backgroundImage: AssetImage(user['avatar'] as String),
+            const CircleAvatar(
               radius: 48,
+              child: Icon(Icons.person, size: 48),
             ),
             const SizedBox(height: 16),
             Text(
-              user['username'] as String,
+              username,
               style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 6),
             Text(
-              user['email'] as String,
+              email,
               style: const TextStyle(fontSize: 16, color: Colors.grey),
             ),
             const SizedBox(height: 18),
             Chip(
-              label: Text((user['premium'] as bool) ? 'Premium User' : 'Free User'),
-              backgroundColor: (user['premium'] as bool) ? Colors.cyan : Colors.grey[400],
+              label: Text(premium ? 'Premium User' : 'Free User'),
+              backgroundColor: premium ? Colors.cyan : Colors.grey[400],
               labelStyle: const TextStyle(color: Colors.white),
               avatar: Icon(
-                (user['premium'] as bool) ? Icons.star : Icons.person,
+                premium ? Icons.star : Icons.person,
                 color: Colors.white,
               ),
             ),
@@ -67,7 +69,15 @@ class AccountPage extends StatelessWidget {
         unselectedItemColor: Colors.grey[600],
         onTap: (index) {
           if (index == 0) {
-            Navigator.pushReplacementNamed(context, '/home');
+            Navigator.pushReplacementNamed(
+              context,
+              '/home',
+              arguments: {
+                'username': username,
+                'email': email,
+                'premium': premium,
+              },
+            );
           } else if (index == 1) {
             Navigator.pushReplacementNamed(context, '/musicshop');
           }

@@ -1,247 +1,321 @@
 import 'package:flutter/material.dart';
+import 'package:on_audio_query/on_audio_query.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'page-song-detail.dart';
-import 'favorites-page.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  final List<Map<String, dynamic>> favorites;
+  final Function(Map<String, dynamic>) onLike;
+
+  const HomePage({
+    Key? key,
+    required this.favorites,
+    required this.onLike,
+  }) : super(key: key);
+
   @override
   State<HomePage> createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
-  List<Map<String, dynamic>> localSongs = [
-    {
-      'title': 'Bad Az To',
-      'artist': 'Mohsen Chavoshi',
-      'cover': 'assets/images/photo_2025-05-14_20-51-35.jpg',
-      'file': 'assets/music/Mohsen Chavoshi - Bad Az To (320).mp3',
-    },
-    {
-      'title': 'ZendanBan',
-      'artist': 'Mohsen Chavoshi',
-      'cover': 'assets/images/Mohsen-Chavoshi-Collection.jpg',
-      'file': 'assets/music/Mohsen Chavoshi - Zendan Ban (320).mp3',
-    },
-    {
-      'title': 'Bekham Az To Begzaram Man',
-      'artist': 'Mohsen Chavoshi',
-      'cover': 'assets/images/Screenshot-2025-04-15-121400.jpg',
-      'file': 'assets/music/Mohsen Chavoshi - Bekham Az To Begzaram Man (320).mp3',
-    },
-  ];
-
-  List<Map<String, dynamic>> downloadedSongs = [
-    {
-      'title': 'Ocean Sounds',
-      'artist': 'DJ Wave',
-      'cover': 'assets/images/photo_2025-05-14_20-51-35.jpg',
-      'file': 'assets/music/Mohsen Chavoshi - Bad Az To (320).mp3',
-    },
-    {
-      'title': 'City Life',
-      'artist': 'Lily Beats',
-      'cover': 'assets/images/photo_2025-05-14_20-51-35.jpg',
-      'file': 'assets/music/Mohsen Chavoshi - Bad Az To (320).mp3',
-    },
-    {
-      'title': 'Calm Piano',
-      'artist': 'RelaxMan',
-      'cover': 'assets/images/photo_2025-05-14_20-51-35.jpg',
-      'file': 'assets/music/Mohsen Chavoshi - Bad Az To (320).mp3',
-    },
-  ];
-
-  List<Map<String, dynamic>> favoriteSongs = [];
-
-  String searchQuery = '';
+  final OnAudioQuery _audioQuery = OnAudioQuery();
+  List<SongModel> _songs = [];
+  bool _loading = true;
+  String? _error;
+  int _sortTypeIndex = 0;
   int _navIndex = 0;
-  bool _isSortedAZ = true;
 
-  void _sortSongsAZ() {
-    setState(() {
-      _isSortedAZ = !_isSortedAZ;
-      localSongs.sort((a, b) => _isSortedAZ
-          ? a['title'].toLowerCase().compareTo(b['title'].toLowerCase())
-          : b['title'].toLowerCase().compareTo(a['title'].toLowerCase()));
-      downloadedSongs.sort((a, b) => _isSortedAZ
-          ? a['title'].toLowerCase().compareTo(b['title'].toLowerCase())
-          : b['title'].toLowerCase().compareTo(a['title'].toLowerCase()));
-    });
+  String _searchQuery = "";
+  final TextEditingController _searchController = TextEditingController();
+
+  String _username = "Unknown User";
+  String _email = "Unknown Email";
+  bool _premium = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    if (args != null) {
+      if (args['username'] != null && args['username'].toString().isNotEmpty) {
+        _username = args['username'];
+      }
+      if (args['email'] != null && args['email'].toString().isNotEmpty) {
+        _email = args['email'];
+      }
+      if (args['premium'] != null) {
+        _premium = args['premium'] == true;
+      }
+    }
   }
+
+  final List<SongSortType> _sortTypes = [
+    SongSortType.TITLE,
+    SongSortType.ARTIST,
+    SongSortType.ALBUM,
+    SongSortType.DURATION,
+  ];
+  final List<String> _sortNames = [
+    'Title', 'Artist', 'Album', 'Duration'
+  ];
 
   @override
   void initState() {
     super.initState();
-    localSongs.sort((a, b) => a['title'].toLowerCase().compareTo(b['title'].toLowerCase()));
-    downloadedSongs.sort((a, b) => a['title'].toLowerCase().compareTo(b['title'].toLowerCase()));
-  }
-
-  void _handleLike(Map<String, dynamic> song) {
-    setState(() {
-      if (favoriteSongs.any((s) => s['title'] == song['title'])) {
-        favoriteSongs.removeWhere((s) => s['title'] == song['title']);
-      } else {
-        favoriteSongs.add(song);
-      }
+    _fetchSongs();
+    _searchController.addListener(() {
+      setState(() {
+        _searchQuery = _searchController.text;
+      });
     });
   }
 
   @override
-  Widget build(BuildContext context) {
-    List<Map<String, dynamic>> filteredLocal = localSongs
-        .where((song) =>
-        song['title']!.toLowerCase().contains(searchQuery.toLowerCase()))
-        .toList();
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
-    List<Map<String, dynamic>> filteredDownloaded = downloadedSongs
-        .where((song) =>
-        song['title']!.toLowerCase().contains(searchQuery.toLowerCase()))
-        .toList();
+  void _handleLike(Map<String, dynamic> song) {
+    setState(() {
+      if (widget.favorites.any((s) => s['title'] == song['title'])) {
+        widget.favorites.removeWhere((s) => s['title'] == song['title']);
+      } else {
+        widget.favorites.add(song);
+      }
+    });
+  }
+
+  Future<void> _fetchSongs() async {
+    setState(() {
+      _loading = true;
+    });
+
+    var audioStatus = await Permission.audio.status;
+    var storageStatus = await Permission.storage.status;
+
+    if (!audioStatus.isGranted) await Permission.audio.request();
+    if (!storageStatus.isGranted) await Permission.storage.request();
+
+    audioStatus = await Permission.audio.status;
+    storageStatus = await Permission.storage.status;
+
+    if (!audioStatus.isGranted && !storageStatus.isGranted) {
+      setState(() {
+        _loading = false;
+        _error = 'Permission denied!';
+      });
+      return;
+    }
+
+    try {
+      List<SongModel> songs = await _audioQuery.querySongs(
+        sortType: _sortTypes[_sortTypeIndex],
+        orderType: OrderType.ASC_OR_SMALLER,
+        uriType: UriType.EXTERNAL,
+      );
+      setState(() {
+        _songs = songs;
+        _loading = false;
+        _error = null;
+      });
+    } catch (e) {
+      setState(() {
+        _loading = false;
+        _error = 'Error reading songs: $e';
+      });
+    }
+  }
+
+  List<SongModel> get _filteredSongs {
+    List<SongModel> filtered;
+    if (_searchQuery.isEmpty) {
+      filtered = List.from(_songs);
+    } else {
+      filtered = _songs
+          .where((song) =>
+          song.title.toLowerCase().contains(_searchQuery.toLowerCase()))
+          .toList();
+    }
+
+    // مرتب سازی دستی
+    switch (_sortTypeIndex) {
+      case 0:
+        filtered.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+        break;
+      case 1:
+        filtered.sort((a, b) => (a.artist ?? '').toLowerCase().compareTo((b.artist ?? '').toLowerCase()));
+        break;
+      case 2:
+        filtered.sort((a, b) => (a.album ?? '').toLowerCase().compareTo((b.album ?? '').toLowerCase()));
+        break;
+      case 3:
+        filtered.sort((a, b) => (a.duration ?? 0).compareTo(b.duration ?? 0));
+        break;
+    }
+
+    return filtered;
+  }
+
+  void _goToSongDetail(SongModel song) {
+    final songMap = {
+      'title': song.title,
+      'artist': song.artist ?? '',
+      'file': song.data,
+      'album': song.album ?? '',
+      'duration': song.duration ?? 0,
+      'id': song.id,
+      'uri': song.uri
+    };
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SongDetailPage(
+          song: songMap,
+          favorites: widget.favorites,
+          onLike: widget.onLike,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    if (_error != null) {
+      return Scaffold(
+        body: Center(child: Text(_error!)),
+        bottomNavigationBar: _buildBottomNavigationBar(),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Home'),
+        title: const Text("My Songs :)"),
         actions: [
+          PopupMenuButton<int>(
+            icon: const Icon(Icons.sort),
+            initialValue: _sortTypeIndex,
+            onSelected: (index) async {
+              setState(() {
+                _sortTypeIndex = index;
+              });
+              await _fetchSongs();
+            },
+            itemBuilder: (context) => List.generate(_sortTypes.length, (index) {
+              return PopupMenuItem<int>(
+                value: index,
+                child: Text('Sort by ${_sortNames[index]}'),
+              );
+            }),
+          ),
           IconButton(
-            icon: Icon(
-              _isSortedAZ ? Icons.sort_by_alpha : Icons.sort_by_alpha_outlined,
-            ),
-            onPressed: _sortSongsAZ,
-            tooltip: _isSortedAZ ? 'مرتب‌سازی (الف-ی)' : 'مرتب‌سازی (ی-الف)',
+            icon: const Icon(Icons.favorite, color: Colors.redAccent),
+            onPressed: () {
+              Navigator.pushNamed(context, '/favorites');
+            },
           ),
         ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(56),
-          child: Padding(
-            padding: const EdgeInsets.all(8),
-            child: TextField(
-              onChanged: (val) {
-                setState(() {
-                  searchQuery = val;
-                });
-              },
-              decoration: InputDecoration(
-                hintText: 'Search for a song...',
-                prefixIcon: const Icon(Icons.search),
-              ),
-            ),
-          ),
-        ),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
+      body: Column(
         children: [
-          const Text('Local Songs',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          ...filteredLocal.map((song) => ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 2),
-            leading: CircleAvatar(
-              backgroundImage: AssetImage(song['cover']),
-              radius: 22,
-            ),
-            title: Text(song['title']),
-            subtitle: Text(song['artist']),
-            trailing: IconButton(
-              icon: Icon(
-                favoriteSongs.any((s) => s['title'] == song['title'])
-                    ? Icons.favorite
-                    : Icons.favorite_border,
-                color: favoriteSongs.any((s) => s['title'] == song['title'])
-                    ? Colors.red
-                    : Colors.grey,
-              ),
-              onPressed: () => _handleLike(song),
-            ),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => SongDetailPage(
-                    song: song,
-                    favorites: favoriteSongs,
-                    onLike: _handleLike,
-                  ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Search by title...',
+                prefixIcon: Icon(Icons.search),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
                 ),
-              );
-            },
-          )),
-          const SizedBox(height: 18),
-          const Text('Downloaded Songs',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          ...filteredDownloaded.map((song) => ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 2),
-            leading: CircleAvatar(
-              backgroundImage: AssetImage(song['cover']),
-              radius: 22,
+                filled: true,
+                fillColor: Colors.grey[200],
+              ),
             ),
-            title: Text(song['title']),
-            subtitle: Text(song['artist']),
-            trailing: IconButton(
-              icon: const Icon(Icons.download, color: Colors.cyan),
-              onPressed: () {
-                // دانلود آهنگ
+          ),
+          Expanded(
+            child: _filteredSongs.isEmpty
+                ? const Center(child: Text("No results found."))
+                : ListView.builder(
+              itemCount: _filteredSongs.length,
+              itemBuilder: (context, index) {
+                final song = _filteredSongs[index];
+                return ListTile(
+                  leading: QueryArtworkWidget(
+                    id: song.id,
+                    type: ArtworkType.AUDIO,
+                  ),
+                  title: Text(song.title),
+                  subtitle: Text(song.artist ?? "Unknown artist"),
+                  onTap: () => _goToSongDetail(song),
+                  trailing: IconButton(
+                    icon: Icon(
+                      widget.favorites.any((s) => s['title'] == song.title)
+                          ? Icons.favorite
+                          : Icons.favorite_border,
+                      color: widget.favorites.any((s) => s['title'] == song.title)
+                          ? Colors.red
+                          : Colors.grey,
+                    ),
+                    onPressed: () {
+                      final songMap = {
+                        'title': song.title,
+                        'artist': song.artist ?? '',
+                        'file': song.data,
+                        'album': song.album ?? '',
+                        'duration': song.duration ?? 0,
+                        'id': song.id,
+                        'uri': song.uri
+                      };
+                      _handleLike(songMap);
+                    },
+                  ),
+                );
               },
             ),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => SongDetailPage(
-                    song: song,
-                    favorites: favoriteSongs,
-                    onLike: _handleLike,
-                  ),
-                ),
-              );
+          ),
+        ],
+      ),
+      bottomNavigationBar: _buildBottomNavigationBar(),
+    );
+  }
+
+  Widget _buildBottomNavigationBar() {
+    return BottomNavigationBar(
+      currentIndex: _navIndex,
+      selectedItemColor: Colors.cyan[700],
+      unselectedItemColor: Colors.grey[600],
+      onTap: (index) {
+        if (index == 1) {
+          Navigator.pushReplacementNamed(context, '/musicshop');
+        } else if (index == 2) {
+          Navigator.pushReplacementNamed(
+            context,
+            '/account',
+            arguments: {
+              'username': _username,
+              'email': _email,
+              'premium': _premium,
             },
-          )),
-        ],
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed, // نمایش label زیر آیکون‌ها
-        currentIndex: _navIndex,
-        selectedItemColor: Colors.cyan[700],
-        unselectedItemColor: Colors.grey[600],
-        backgroundColor: Colors.grey[100],
-        onTap: (index) {
-          setState(() {
-            _navIndex = index;
-          });
-          if (index == 1) {
-            Navigator.pushReplacementNamed(context, '/musicshop');
-          } else if (index == 2) {
-            Navigator.pushReplacementNamed(context, '/account');
-          } else if (index == 3) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => FavoritesPage(
-                  favorites: favoriteSongs,
-                  onLike: _handleLike,
-                ),
-              ),
-            );
-          }
-        },
-        items: const [
-          BottomNavigationBarItem(
-              icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.store), label: 'Shop'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.person), label: 'Account'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.favorite), label: 'Favorites'),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: Colors.cyan,
-        icon: const Icon(Icons.payment, color: Colors.white),
-        label: const Text('Payment', style: TextStyle(color: Colors.white)),
-        onPressed: () {
-          Navigator.pushNamed(context, '/payment');
-        },
-      ),
+          );
+        }
+        setState(() {
+          _navIndex = index;
+        });
+      },
+      items: const [
+        BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+        BottomNavigationBarItem(icon: Icon(Icons.store), label: 'Shop'),
+        BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Account'),
+      ],
     );
   }
 }

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:on_audio_query/on_audio_query.dart';
 import 'package:rxdart/rxdart.dart';
+import 'audio_player_singleton.dart';
 
 class SongDetailPage extends StatefulWidget {
   final Map<String, dynamic> song;
@@ -20,53 +22,63 @@ class SongDetailPage extends StatefulWidget {
 
 class _SongDetailPageState extends State<SongDetailPage> {
   late AudioPlayer _player;
-  bool isPlaying = false;
+  bool _isPlaying = false;
 
   @override
   void initState() {
     super.initState();
-    _player = AudioPlayer();
+    _player = GlobalAudioPlayer.instance;
     _init();
+    _player.playerStateStream.listen((state) {
+      setState(() {
+        _isPlaying = state.playing;
+      });
+    });
+  }
+
+  Future<void> _init() async {
+    final uri = widget.song['uri'] ?? widget.song['file'] ?? widget.song['data'];
+    if (uri != null && uri.toString().isNotEmpty) {
+      if (_player.audioSource == null ||
+          (_player.audioSource is ProgressiveAudioSource &&
+              (_player.audioSource as ProgressiveAudioSource).uri.toString() != uri.toString())) {
+        await _player.setUrl(uri);
+      }
+      _player.play();
+    }
   }
 
   @override
   void dispose() {
-    _player.dispose();
+    // نباید _player را dispose کنی که آهنگ قطع نشود!
     super.dispose();
   }
 
-  Future<void> _init() async {
-    try {
-      await _player.setAsset(widget.song['file']!);
-    } catch (e) {
-      print("Error loading audio source: $e");
-    }
-  }
-
   bool get isLiked {
-    return widget.favorites.any((song) => song['title'] == widget.song['title']);
+    return widget.favorites.any((song) => song['id'] == widget.song['id']);
   }
 
   void _togglePlayPause() {
     if (_player.playing) {
       _player.pause();
-      setState(() => isPlaying = false);
     } else {
       _player.play();
-      setState(() => isPlaying = true);
     }
   }
 
   void _toggleLike() {
     widget.onLike(widget.song);
-    setState(() {}); // بروزرسانی UI
+    setState(() {});
   }
 
   Stream<DurationState> get _durationStateStream =>
-      Rx.combineLatest2<Duration, void, DurationState>(
+      Rx.combineLatest2<Duration, Duration?, DurationState>(
         _player.positionStream,
-        Stream.periodic(const Duration(milliseconds: 500)),
-            (position, _) => DurationState(position, _player.duration ?? Duration.zero),
+        _player.durationStream,
+            (position, duration) => DurationState(
+          position,
+          duration ?? Duration.zero,
+        ),
       );
 
   final Color backgroundColor = const Color(0xFF1E1E1E);
@@ -81,49 +93,55 @@ class _SongDetailPageState extends State<SongDetailPage> {
         foregroundColor: accentColor,
         elevation: 0,
         title: Text(
-          widget.song['title']!,
+          widget.song['title'] ?? "",
           style: TextStyle(color: accentColor, fontWeight: FontWeight.bold),
         ),
         actions: [
           IconButton(
             icon: Icon(
               isLiked ? Icons.favorite : Icons.favorite_border,
-              color: isLiked ? Colors.red : Colors.white,
+              color: isLiked ? Colors.red : accentColor,
             ),
-            tooltip: "Like",
             onPressed: _toggleLike,
+            tooltip: "Like",
           ),
         ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: Image.asset(widget.song['cover']!, height: 250),
+            QueryArtworkWidget(
+              id: widget.song['id'] ?? 0,
+              type: ArtworkType.AUDIO,
+              nullArtworkWidget: Icon(Icons.music_note, color: accentColor, size: 120),
+              artworkBorder: BorderRadius.circular(20),
+              artworkHeight: 180,
+              artworkWidth: 180,
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
             Text(
-              widget.song['artist']!,
-              style: const TextStyle(fontSize: 22, color: Colors.white),
+              widget.song['artist'] ?? "Unknown Artist",
+              style: const TextStyle(color: Colors.white70, fontSize: 18),
+              textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 30),
+            const SizedBox(height: 10),
             StreamBuilder<DurationState>(
               stream: _durationStateStream,
               builder: (context, snapshot) {
-                final durationState = snapshot.data;
-                final progress = durationState?.position ?? Duration.zero;
-                final total = durationState?.total ?? Duration.zero;
-
+                final durationState = snapshot.data ??
+                    DurationState(const Duration(seconds: 0), const Duration(seconds: 0));
+                final position = durationState.position;
+                final total = durationState.total;
                 return Column(
                   children: [
                     Slider(
                       activeColor: accentColor,
-                      inactiveColor: Colors.grey[700],
-                      min: 0.0,
+                      inactiveColor: Colors.cyan[100],
+                      min: 0,
                       max: total.inMilliseconds.toDouble(),
-                      value: progress.inMilliseconds.toDouble().clamp(0.0, total.inMilliseconds.toDouble()),
+                      value: position.inMilliseconds.clamp(0, total.inMilliseconds).toDouble(),
                       onChanged: (value) {
                         _player.seek(Duration(milliseconds: value.toInt()));
                       },
@@ -131,56 +149,50 @@ class _SongDetailPageState extends State<SongDetailPage> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(_formatDuration(progress), style: const TextStyle(color: Colors.white70)),
-                        Text(_formatDuration(total - progress), style: const TextStyle(color: Colors.white70)),
+                        Text(_formatDuration(position), style: TextStyle(color: Colors.white70)),
+                        Text(_formatDuration(total), style: TextStyle(color: Colors.white70)),
                       ],
                     ),
                   ],
                 );
               },
             ),
-            const SizedBox(height: 30),
+            const SizedBox(height: 24),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 IconButton(
-                  icon: const Icon(Icons.skip_previous),
-                  color: Colors.white,
-                  iconSize: 36,
-                  onPressed: () => _player.seek(Duration.zero),
+                  icon: const Icon(Icons.replay_10, color: Colors.white),
+                  iconSize: 40,
+                  onPressed: () {
+                    final newPosition = _player.position - const Duration(seconds: 10);
+                    _player.seek(newPosition > Duration.zero ? newPosition : Duration.zero);
+                  },
                 ),
-                IconButton(
-                  icon: Icon(
-                    isPlaying ? Icons.pause_circle_filled : Icons.play_circle_fill,
-                    color: accentColor,
+                const SizedBox(width: 16),
+                CircleAvatar(
+                  radius: 34,
+                  backgroundColor: accentColor,
+                  child: IconButton(
+                    icon: Icon(
+                      _isPlaying ? Icons.pause : Icons.play_arrow,
+                      color: backgroundColor,
+                      size: 40,
+                    ),
+                    onPressed: _togglePlayPause,
                   ),
-                  iconSize: 64,
-                  onPressed: _togglePlayPause,
                 ),
+                const SizedBox(width: 16),
                 IconButton(
-                  icon: const Icon(Icons.skip_next),
-                  color: Colors.white,
-                  iconSize: 36,
-                  onPressed: () => _player.seek(_player.duration ?? Duration.zero),
+                  icon: const Icon(Icons.forward_10, color: Colors.white),
+                  iconSize: 40,
+                  onPressed: () async {
+                    final total = await _player.duration ?? Duration.zero;
+                    final newPosition = _player.position + const Duration(seconds: 10);
+                    _player.seek(newPosition < total ? newPosition : total);
+                  },
                 ),
               ],
-            ),
-            const SizedBox(height: 20),
-            TextButton.icon(
-              onPressed: _toggleLike,
-              icon: Icon(
-                isLiked ? Icons.favorite : Icons.favorite_border,
-                color: isLiked ? Colors.red : Colors.grey,
-              ),
-              label: Text(
-                isLiked ? "Liked" : "Like",
-                style: TextStyle(color: isLiked ? Colors.red : Colors.white),
-              ),
-              style: TextButton.styleFrom(
-                backgroundColor: backgroundColor.withOpacity(0.3),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-              ),
             ),
           ],
         ),
@@ -188,11 +200,11 @@ class _SongDetailPageState extends State<SongDetailPage> {
     );
   }
 
-  String _formatDuration(Duration duration) {
+  String _formatDuration(Duration d) {
     String twoDigits(int n) => n.toString().padLeft(2, '0');
-    final minutes = twoDigits(duration.inMinutes.remainder(60));
-    final seconds = twoDigits(duration.inSeconds.remainder(60));
-    return '$minutes:$seconds';
+    final minutes = twoDigits(d.inMinutes.remainder(60));
+    final seconds = twoDigits(d.inSeconds.remainder(60));
+    return "$minutes:$seconds";
   }
 }
 
