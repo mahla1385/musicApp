@@ -1,19 +1,14 @@
 import 'package:flutter/material.dart';
+import '../utils//user_session.dart';
 
 class AccountPage extends StatelessWidget {
   const AccountPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-
-    final String username = (args?['username']?.toString().isNotEmpty ?? false)
-        ? args!['username']
-        : 'Unknown User';
-    final String email = (args?['email']?.toString().isNotEmpty ?? false)
-        ? args!['email']
-        : 'Unknown Email';
-    final bool premium = args?['premium'] == true;
+    final String username = UserSession.username ?? 'Unknown';
+    final String email = UserSession.email ?? 'Unknown';
+    final bool premium = UserSession.isPremium;
 
     return Scaffold(
       appBar: AppBar(
@@ -58,7 +53,10 @@ class AccountPage extends StatelessWidget {
             ListTile(
               leading: const Icon(Icons.logout, color: Colors.redAccent),
               title: const Text('Logout'),
-              onTap: () => Navigator.pushReplacementNamed(context, '/login'),
+              onTap: () {
+                UserSession.clear();
+                Navigator.pushReplacementNamed(context, '/login');
+              },
             ),
           ],
         ),
@@ -69,15 +67,7 @@ class AccountPage extends StatelessWidget {
         unselectedItemColor: Colors.grey[600],
         onTap: (index) {
           if (index == 0) {
-            Navigator.pushReplacementNamed(
-              context,
-              '/home',
-              arguments: {
-                'username': username,
-                'email': email,
-                'premium': premium,
-              },
-            );
+            Navigator.pushReplacementNamed(context, '/home');
           } else if (index == 1) {
             Navigator.pushReplacementNamed(context, '/musicshop');
           }

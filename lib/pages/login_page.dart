@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'forgot_password_page.dart';
+import '../utils//user_session.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -9,12 +11,11 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
+  final _usernameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _passwordVisible = false;
 
-  String? _usernameFromSignup;
-  String? _emailFromSignup;
   bool _isPremium = false;
 
   @override
@@ -22,12 +23,14 @@ class _LoginPageState extends State<LoginPage> {
     super.didChangeDependencies();
     final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
     if (args != null) {
-      _usernameFromSignup = args['username'];
-      _emailFromSignup = args['email'];
-      if (_emailFromSignup != null && _emailController.text.isEmpty) {
-        _emailController.text = _emailFromSignup!;
-      }
+      _usernameController.text = args['username'] ?? '';
+      _emailController.text = args['email'] ?? '';
     }
+  }
+
+  String? _validateUsername(String? value) {
+    if (value == null || value.trim().isEmpty) return 'Username is required';
+    return null;
   }
 
   String? _validateEmail(String? value) {
@@ -81,6 +84,15 @@ class _LoginPageState extends State<LoginPage> {
               ),
               const SizedBox(height: 36),
               TextFormField(
+                controller: _usernameController,
+                decoration: const InputDecoration(
+                  labelText: 'Username',
+                  prefixIcon: Icon(Icons.person),
+                ),
+                validator: _validateUsername,
+              ),
+              const SizedBox(height: 18),
+              TextFormField(
                 controller: _emailController,
                 decoration: const InputDecoration(
                   labelText: 'Email',
@@ -132,21 +144,35 @@ class _LoginPageState extends State<LoginPage> {
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
-                  onPressed: () {
-                    // TODO: forgot password logic
+                  onPressed: () async {
+                    final result = await Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => ForgotPasswordPage()),
+                    );
+                    if (result != null && result is Map<String, String>) {
+                      _emailController.text = result['email'] ?? '';
+                      _passwordController.text = result['newPassword'] ?? '';
+                    }
                   },
-                  child: const Text('Forgot Password?'),
+                  child: const Text("Forgot Password?"),
                 ),
               ),
               const SizedBox(height: 20),
               ElevatedButton(
                 onPressed: () {
                   if (_formKey.currentState?.validate() ?? false) {
+                    UserSession.setUser(
+                      id: 1,
+                      name: _usernameController.text.trim(),
+                      mail: _emailController.text.trim(),
+                      isPremium: _isPremium,
+                    );
+
                     Navigator.pushReplacementNamed(
                       context,
                       '/home',
                       arguments: {
-                        'username': _usernameFromSignup ?? '',
+                        'username': _usernameController.text.trim(),
                         'email': _emailController.text.trim(),
                         'premium': _isPremium,
                       },

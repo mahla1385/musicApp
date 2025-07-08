@@ -3,6 +3,8 @@ import 'package:just_audio/just_audio.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:rxdart/rxdart.dart';
 import 'audio_player_singleton.dart';
+import '../ws/music_websocket_client.dart';
+import '../utils/user_session.dart';
 
 class SongDetailPage extends StatefulWidget {
   final Map<String, dynamic> song;
@@ -23,16 +25,39 @@ class SongDetailPage extends StatefulWidget {
 class _SongDetailPageState extends State<SongDetailPage> {
   late AudioPlayer _player;
   bool _isPlaying = false;
+  final ws = MusicWebSocketClient("ws://192.168.97.219:8080/ws");
+  final TextEditingController _commentController = TextEditingController();
+  List<Map<String, dynamic>> _comments = [];
+  int _likes = 0;
+  int _dislikes = 0;
 
   @override
   void initState() {
     super.initState();
     _player = GlobalAudioPlayer.instance;
     _init();
-    _player.playerStateStream.listen((state) {
-      setState(() {
-        _isPlaying = state.playing;
-      });
+
+    ws.listen((message) {
+      final action = message['action'];
+      if (action == 'get_comments_response' && message['songId'] == widget.song['id']) {
+        setState(() {
+          _comments = List<Map<String, dynamic>>.from(message['comments']);
+        });
+      } else if (action == 'comment_added' && message['songId'] == widget.song['id']) {
+        ws.getComments(widget.song['id']);
+      } else if (action == 'likes_count' && message['songId'] == widget.song['id']) {
+        setState(() {
+          _likes = message['likes'] ?? 0;
+          _dislikes = message['dislikes'] ?? 0;
+        });
+      }
+    });
+
+    ws.getComments(widget.song['id']);
+    ws.getLikeCount(widget.song['id']);
+
+    _player.playerStateStream.listen((s) {
+      setState(() => _isPlaying = s.playing);
     });
   }
 
@@ -50,167 +75,169 @@ class _SongDetailPageState extends State<SongDetailPage> {
 
   @override
   void dispose() {
-    // نباید _player را dispose کنی که آهنگ قطع نشود!
+    _commentController.dispose();
     super.dispose();
   }
 
-  bool get isLiked {
-    return widget.favorites.any((song) => song['id'] == widget.song['id']);
-  }
+  bool get isLiked => widget.favorites.any((song) => song['id'] == widget.song['id']);
 
-  void _togglePlayPause() {
-    if (_player.playing) {
-      _player.pause();
-    } else {
-      _player.play();
-    }
-  }
+  void _togglePlayPause() => _player.playing ? _player.pause() : _player.play();
 
   void _toggleLike() {
     widget.onLike(widget.song);
     setState(() {});
   }
 
-  Stream<DurationState> get _durationStateStream =>
-      Rx.combineLatest2<Duration, Duration?, DurationState>(
-        _player.positionStream,
-        _player.durationStream,
-            (position, duration) => DurationState(
-          position,
-          duration ?? Duration.zero,
-        ),
+  void _sendComment() {
+    final text = _commentController.text.trim();
+    final userId = UserSession.userId;
+    final username = UserSession.username;
+    if (text.isNotEmpty && userId != null && username != null) {
+      ws.sendComment(
+        userId: userId,
+        songId: widget.song['id'],
+        content: text,
+        username: username,
       );
+      _commentController.clear();
+      Future.delayed(const Duration(milliseconds: 300), () => ws.getComments(widget.song['id']));
+    }
+  }
 
-  final Color backgroundColor = const Color(0xFF1E1E1E);
-  final Color accentColor = const Color(0xFF00E5FF);
+  void _deleteComment(int commentId) {
+    ws.deleteComment(commentId: commentId, songId: widget.song['id']);
+  }
+
+  void _sendLike(bool like) {
+    final userId = UserSession.userId;
+    if (userId == null) return;
+    ws.toggleLike(userId: userId, songId: widget.song['id'], type: like ? "like" : "dislike");
+  }
+
+  Stream<DurationState> get _durationStateStream => Rx.combineLatest2(
+    _player.positionStream,
+    _player.durationStream,
+        (Duration pos, Duration? total) => DurationState(pos, total ?? Duration.zero),
+  );
+
+  String _formatDuration(Duration d) => "${d.inMinutes.remainder(60).toString().padLeft(2, '0')}:${d.inSeconds.remainder(60).toString().padLeft(2, '0')}";
 
   @override
   Widget build(BuildContext context) {
+    const bg = Color(0xFF1E1E1E);
+    const accent = Color(0xFF00E5FF);
+
     return Scaffold(
-      backgroundColor: backgroundColor,
+      backgroundColor: bg,
       appBar: AppBar(
-        backgroundColor: backgroundColor,
-        foregroundColor: accentColor,
+        backgroundColor: bg,
+        foregroundColor: accent,
         elevation: 0,
-        title: Text(
-          widget.song['title'] ?? "",
-          style: TextStyle(color: accentColor, fontWeight: FontWeight.bold),
-        ),
+        title: Text(widget.song['title'] ?? '', style: const TextStyle(color: accent, fontWeight: FontWeight.bold)),
         actions: [
           IconButton(
-            icon: Icon(
-              isLiked ? Icons.favorite : Icons.favorite_border,
-              color: isLiked ? Colors.red : accentColor,
-            ),
+            icon: Icon(isLiked ? Icons.favorite : Icons.favorite_border, color: isLiked ? Colors.red : accent),
             onPressed: _toggleLike,
-            tooltip: "Like",
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            QueryArtworkWidget(
-              id: widget.song['id'] ?? 0,
-              type: ArtworkType.AUDIO,
-              nullArtworkWidget: Icon(Icons.music_note, color: accentColor, size: 120),
-              artworkBorder: BorderRadius.circular(20),
-              artworkHeight: 180,
-              artworkWidth: 180,
-            ),
-            const SizedBox(height: 24),
-            Text(
-              widget.song['artist'] ?? "Unknown Artist",
-              style: const TextStyle(color: Colors.white70, fontSize: 18),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 10),
-            StreamBuilder<DurationState>(
-              stream: _durationStateStream,
-              builder: (context, snapshot) {
-                final durationState = snapshot.data ??
-                    DurationState(const Duration(seconds: 0), const Duration(seconds: 0));
-                final position = durationState.position;
-                final total = durationState.total;
-                return Column(
-                  children: [
-                    Slider(
-                      activeColor: accentColor,
-                      inactiveColor: Colors.cyan[100],
-                      min: 0,
-                      max: total.inMilliseconds.toDouble(),
-                      value: position.inMilliseconds.clamp(0, total.inMilliseconds).toDouble(),
-                      onChanged: (value) {
-                        _player.seek(Duration(milliseconds: value.toInt()));
-                      },
-                    ),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(_formatDuration(position), style: TextStyle(color: Colors.white70)),
-                        Text(_formatDuration(total), style: TextStyle(color: Colors.white70)),
-                      ],
-                    ),
-                  ],
-                );
-              },
-            ),
-            const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.replay_10, color: Colors.white),
-                  iconSize: 40,
-                  onPressed: () {
-                    final newPosition = _player.position - const Duration(seconds: 10);
-                    _player.seek(newPosition > Duration.zero ? newPosition : Duration.zero);
-                  },
-                ),
-                const SizedBox(width: 16),
-                CircleAvatar(
-                  radius: 34,
-                  backgroundColor: accentColor,
-                  child: IconButton(
-                    icon: Icon(
-                      _isPlaying ? Icons.pause : Icons.play_arrow,
-                      color: backgroundColor,
-                      size: 40,
-                    ),
-                    onPressed: _togglePlayPause,
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          QueryArtworkWidget(
+            id: widget.song['id'] ?? 0,
+            type: ArtworkType.AUDIO,
+            nullArtworkWidget: const Icon(Icons.music_note, color: accent, size: 120),
+            artworkBorder: BorderRadius.circular(20),
+            artworkHeight: 180,
+            artworkWidth: 180,
+          ),
+          const SizedBox(height: 12),
+          Text(widget.song['artist'] ?? "Unknown Artist", textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70)),
+          const SizedBox(height: 10),
+          StreamBuilder<DurationState>(
+            stream: _durationStateStream,
+            builder: (_, snap) {
+              final d = snap.data ?? DurationState(Duration.zero, Duration.zero);
+              return Column(
+                children: [
+                  Slider(
+                    min: 0,
+                    max: d.total.inMilliseconds.toDouble(),
+                    value: d.position.inMilliseconds.clamp(0, d.total.inMilliseconds).toDouble(),
+                    onChanged: (v) => _player.seek(Duration(milliseconds: v.toInt())),
+                    activeColor: accent,
+                    inactiveColor: Colors.grey,
                   ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(_formatDuration(d.position), style: const TextStyle(color: Colors.white70)),
+                      Text(_formatDuration(d.total), style: const TextStyle(color: Colors.white70)),
+                    ],
+                  ),
+                ],
+              );
+            },
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              IconButton(icon: const Icon(Icons.replay_10, color: Colors.white), onPressed: () => _player.seek(_player.position - const Duration(seconds: 10))),
+              CircleAvatar(
+                backgroundColor: accent,
+                radius: 28,
+                child: IconButton(
+                  icon: Icon(_isPlaying ? Icons.pause : Icons.play_arrow, color: bg, size: 28),
+                  onPressed: _togglePlayPause,
                 ),
-                const SizedBox(width: 16),
-                IconButton(
-                  icon: const Icon(Icons.forward_10, color: Colors.white),
-                  iconSize: 40,
-                  onPressed: () async {
-                    final total = await _player.duration ?? Duration.zero;
-                    final newPosition = _player.position + const Duration(seconds: 10);
-                    _player.seek(newPosition < total ? newPosition : total);
-                  },
-                ),
-              ],
+              ),
+              IconButton(icon: const Icon(Icons.forward_10, color: Colors.white), onPressed: () => _player.seek(_player.position + const Duration(seconds: 10))),
+            ],
+          ),
+          const Divider(color: Colors.white24, height: 32),
+          const Text('Write a Comment', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          TextField(
+            controller: _commentController,
+            style: const TextStyle(color: Colors.white),
+            decoration: InputDecoration(
+              hintText: 'Write a comment...',
+              hintStyle: const TextStyle(color: Colors.white54),
+              suffixIcon: IconButton(
+                icon: const Icon(Icons.send, color: accent),
+                onPressed: _sendComment,
+              ),
+              filled: true,
+              fillColor: Colors.white10,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 16),
+          const Text('Comments:', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          if (_comments.isEmpty)
+            const Text('No comments yet.', style: TextStyle(color: Colors.white54))
+          else
+            ..._comments.map((c) => ListTile(
+              title: Text('${c['username'] ?? 'User'}: ${c['content']}', style: const TextStyle(color: Colors.white)),
+              trailing: (UserSession.userId == c['userId'])
+                  ? IconButton(
+                icon: const Icon(Icons.delete, color: Colors.redAccent),
+                onPressed: () => _deleteComment(c['id']),
+              )
+                  : null,
+            )),
+        ],
       ),
     );
-  }
-
-  String _formatDuration(Duration d) {
-    String twoDigits(int n) => n.toString().padLeft(2, '0');
-    final minutes = twoDigits(d.inMinutes.remainder(60));
-    final seconds = twoDigits(d.inSeconds.remainder(60));
-    return "$minutes:$seconds";
   }
 }
 
 class DurationState {
   final Duration position;
   final Duration total;
-
   DurationState(this.position, this.total);
 }

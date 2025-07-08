@@ -5,7 +5,11 @@ class FavoritesPage extends StatelessWidget {
   final List<Map<String, dynamic>> favorites;
   final Function(Map<String, dynamic>) onLike;
 
-  const FavoritesPage({Key? key, required this.favorites, required this.onLike}) : super(key: key);
+  const FavoritesPage({
+    Key? key,
+    required this.favorites,
+    required this.onLike,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -36,9 +40,41 @@ class FavoritesPage extends StatelessWidget {
                   ),
                 );
               },
+              trailing: IconButton(
+                icon: const Icon(Icons.delete, color: Colors.grey),
+                onPressed: () {
+                  _confirmDelete(context, song);
+                },
+              ),
             ),
           );
         },
+      ),
+    );
+  }
+
+  void _confirmDelete(BuildContext context, Map<String, dynamic> song) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Remove Favorite'),
+        content: const Text('Are you sure you want to remove this song from your favorites?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              onLike(song);
+              Navigator.of(ctx).pop();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Removed from favorites')),
+              );
+            },
+            child: const Text('Remove', style: TextStyle(color: Colors.red)),
+          ),
+        ],
       ),
     );
   }
