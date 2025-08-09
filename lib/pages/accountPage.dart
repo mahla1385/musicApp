@@ -1,8 +1,69 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
-import '../utils//user_session.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../utils/user_session.dart';
 
-class AccountPage extends StatelessWidget {
+class AccountPage extends StatefulWidget {
   const AccountPage({super.key});
+
+  @override
+  State<AccountPage> createState() => _AccountPageState();
+}
+
+class _AccountPageState extends State<AccountPage> {
+  File? _profileImage;
+  final ImagePicker _picker = ImagePicker();
+
+  String get _profileKey => 'profile_image_path_${UserSession.userId}';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfileImage();
+  }
+
+  Future<void> _loadProfileImage() async {
+    final prefs = await SharedPreferences.getInstance();
+    final path = prefs.getString(_profileKey);
+    if (path != null && await File(path).exists()) {
+      setState(() => _profileImage = File(path));
+    } else {
+      setState(() => _profileImage = null);
+    }
+  }
+
+  Future<void> _pickImage() async {
+    try {
+      final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
+      if (image != null) {
+        final directory = await getApplicationDocumentsDirectory();
+        final uniqueName = 'profile_${UserSession.userId}.png';
+        final savedImage = await File(image.path).copy('${directory.path}/$uniqueName');
+
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(_profileKey, savedImage.path);
+
+        setState(() => _profileImage = savedImage);
+      }
+    } catch (e) {
+      print('Error picking image: $e');
+    }
+  }
+
+  Future<void> _removeImage() async {
+    final prefs = await SharedPreferences.getInstance();
+    final path = prefs.getString(_profileKey);
+    if (path != null) {
+      final file = File(path);
+      if (await file.exists()) {
+        await file.delete();
+      }
+      await prefs.remove(_profileKey);
+    }
+    setState(() => _profileImage = null);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -14,16 +75,35 @@ class AccountPage extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Account'),
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.home),
+            onPressed: () {
+              Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
+            },
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(24.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            const CircleAvatar(
-              radius: 48,
-              child: Icon(Icons.person, size: 48),
+            GestureDetector(
+              onTap: _pickImage,
+              child: CircleAvatar(
+                radius: 50,
+                backgroundImage: _profileImage != null ? FileImage(_profileImage!) : null,
+                child: _profileImage == null ? const Icon(Icons.person, size: 48) : null,
+              ),
             ),
+            const SizedBox(height: 12),
+            if (_profileImage != null)
+              TextButton.icon(
+                onPressed: _removeImage,
+                icon: const Icon(Icons.delete, color: Colors.redAccent),
+                label: const Text('Remove Profile Picture', style: TextStyle(color: Colors.redAccent)),
+              ),
             const SizedBox(height: 16),
             Text(
               username,
@@ -46,16 +126,11 @@ class AccountPage extends StatelessWidget {
             ),
             const SizedBox(height: 30),
             ListTile(
-              leading: const Icon(Icons.payment, color: Colors.cyan),
-              title: const Text('Payment'),
-              onTap: () => Navigator.pushNamed(context, '/payment'),
-            ),
-            ListTile(
               leading: const Icon(Icons.logout, color: Colors.redAccent),
               title: const Text('Logout'),
               onTap: () {
                 UserSession.clear();
-                Navigator.pushReplacementNamed(context, '/login');
+                Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
               },
             ),
           ],
@@ -67,9 +142,17 @@ class AccountPage extends StatelessWidget {
         unselectedItemColor: Colors.grey[600],
         onTap: (index) {
           if (index == 0) {
-            Navigator.pushReplacementNamed(context, '/home');
+            if (UserSession.userId == null) {
+              Navigator.pushReplacementNamed(context, '/guestHome');
+            } else {
+              Navigator.pushReplacementNamed(context, '/home');
+            }
           } else if (index == 1) {
-            Navigator.pushReplacementNamed(context, '/musicshop');
+            if (UserSession.userId == null) {
+              Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
+            } else {
+              Navigator.pushReplacementNamed(context, '/musicshop');
+            }
           }
         },
         items: const [

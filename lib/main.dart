@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'pages/SingletonWebsocket.dart';
 import 'pages/login_page.dart';
 import 'pages/signup_page.dart';
 import 'pages/home_page.dart';
@@ -6,8 +7,11 @@ import 'pages/music_shop_page.dart';
 import 'pages/payment_page.dart';
 import 'pages/accountPage.dart';
 import 'pages/favorites-page.dart';
+import 'pages/welcomePage.dart';
+import 'utils/user_session.dart';
 
 void main() {
+  final ws = MusicWebSocketClient();
   runApp(const MyApp());
 }
 
@@ -19,14 +23,25 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  List<Map<String, dynamic>> favorites = [];
+  List<Map<String, dynamic>> userFavorites = [];
+  List<Map<String, dynamic>> guestFavorites = [];
 
-  void handleLike(Map<String, dynamic> song) {
+  void handleUserLike(Map<String, dynamic> song) {
     setState(() {
-      if (favorites.any((item) => item['id'] == song['id'])) {
-        favorites.removeWhere((item) => item['id'] == song['id']);
+      if (userFavorites.any((item) => item['id'] == song['id'])) {
+        userFavorites.removeWhere((item) => item['id'] == song['id']);
       } else {
-        favorites.add(song);
+        userFavorites.add(song);
+      }
+    });
+  }
+
+  void handleGuestLike(Map<String, dynamic> song) {
+    setState(() {
+      if (guestFavorites.any((item) => item['id'] == song['id'])) {
+        guestFavorites.removeWhere((item) => item['id'] == song['id']);
+      } else {
+        guestFavorites.add(song);
       }
     });
   }
@@ -73,21 +88,58 @@ class _MyAppState extends State<MyApp> {
         ),
         useMaterial3: true,
       ),
-      initialRoute: '/login',
+      initialRoute: '/',
       routes: {
+        '/': (context) => const WelcomePage(),
         '/login': (context) => const LoginPage(),
         '/signup': (context) => const SignUpPage(),
         '/home': (context) => HomePage(
-          favorites: favorites,
-          onLike: handleLike,
+          favorites: userFavorites,
+          onLike: handleUserLike,
         ),
-        '/musicshop': (context) => const MusicShopPage(),
-        '/payment': (context) => const PaymentPage(),
-        '/account': (context) => const AccountPage(),
         '/favorites': (context) => FavoritesPage(
-          favorites: favorites,
-          onLike: handleLike,
+          favorites: userFavorites,
+          onLike: handleUserLike,
         ),
+        '/guestHome': (context) => HomePage(
+          favorites: guestFavorites,
+          onLike: handleGuestLike,
+        ),
+        '/guestFavorites': (context) => FavoritesPage(
+          favorites: guestFavorites,
+          onLike: handleGuestLike,
+        ),
+        '/musicshop': (context) => UserSession.userId == null
+            ? const WelcomePage()
+            : const MusicShopPage(),
+        '/account': (context) => UserSession.userId == null
+            ? const WelcomePage()
+            : const AccountPage(),
+      },
+      onGenerateRoute: (settings) {
+        if (settings.name == '/payment') {
+          if (UserSession.userId == null) {
+            return MaterialPageRoute(builder: (context) => const WelcomePage());
+          }
+
+          final args = settings.arguments as Map<String, dynamic>?;
+          if (args == null || !args.containsKey('songId') || !args.containsKey('price')) {
+            return MaterialPageRoute(
+              builder: (context) => const Scaffold(
+                body: Center(child: Text("Invalid payment arguments.")),
+              ),
+            );
+          }
+
+          return MaterialPageRoute(
+            builder: (context) => PaymentPage(
+              songId: args['songId'],
+              price: args['price'],
+            ),
+          );
+        }
+
+        return null;
       },
     );
   }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'SingletonWebsocket.dart'; // مسیر فایل singleton وب‌سوکت را بررسی و تنظیم کن
 
 class ForgotPasswordPage extends StatefulWidget {
   const ForgotPasswordPage({super.key});
@@ -13,14 +14,49 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   final _newPasswordController = TextEditingController();
 
   bool _passwordVisible = false;
+  bool _isLoading = false;
+
+  final MusicWebSocketClient _ws = MusicWebSocketClient();
 
   void _submit() {
     if (_formKey.currentState?.validate() ?? false) {
-      Navigator.pop(context, {
-        'email': _emailController.text.trim(),
-        'newPassword': _newPasswordController.text,
-      });
+      setState(() => _isLoading = true);
+
+      _ws.resetPassword(
+        email: _emailController.text.trim(),
+        newPassword: _newPasswordController.text,
+        onResult: (success, message) {
+          setState(() => _isLoading = false);
+
+          if (success) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text("Password reset successful! Please login with new password."),
+                backgroundColor: Colors.green,
+              ),
+            );
+            Navigator.pop(context, {
+              'email': _emailController.text.trim(),
+              'newPassword': _newPasswordController.text,
+            });
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(message ?? "Password reset failed."),
+                backgroundColor: Colors.redAccent,
+              ),
+            );
+          }
+        },
+      );
     }
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _newPasswordController.dispose();
+    super.dispose();
   }
 
   @override
@@ -82,9 +118,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                       border: const OutlineInputBorder(),
                       suffixIcon: IconButton(
                         icon: Icon(
-                          _passwordVisible
-                              ? Icons.visibility
-                              : Icons.visibility_off,
+                          _passwordVisible ? Icons.visibility : Icons.visibility_off,
                         ),
                         onPressed: () {
                           setState(() {
@@ -116,7 +150,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: _submit,
+                      onPressed: _isLoading ? null : _submit,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blueAccent,
                         padding: const EdgeInsets.symmetric(vertical: 14),
@@ -124,7 +158,16 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      child: const Text(
+                      child: _isLoading
+                          ? const SizedBox(
+                        height: 24,
+                        width: 24,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 3,
+                        ),
+                      )
+                          : const Text(
                         'Reset Password',
                         style: TextStyle(fontSize: 18, color: Colors.white),
                       ),

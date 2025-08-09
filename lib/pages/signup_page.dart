@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'SingletonWebsocket.dart';
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
@@ -15,6 +16,34 @@ class _SignUpPageState extends State<SignUpPage> {
   final _confirmPasswordController = TextEditingController();
   bool _passwordVisible = false;
   bool _confirmPasswordVisible = false;
+
+  // استفاده از Singleton
+  final MusicWebSocketClient _ws = MusicWebSocketClient();
+
+  @override
+  void initState() {
+    super.initState();
+    _ws.setOnData(_handleResponse);
+  }
+
+  void _handleResponse(Map<String, dynamic> data) {
+    if (data['action'] == 'signup_response') {
+      if (data['status'] == 'success') {
+        Navigator.pushReplacementNamed(
+          context,
+          '/login',
+          arguments: {
+            'username': _usernameController.text.trim(),
+            'email': _emailController.text.trim(),
+          },
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(data['message'] ?? 'Signup failed')),
+        );
+      }
+    }
+  }
 
   String? _validateUsername(String? value) {
     if (value == null || value.trim().isEmpty) {
@@ -69,6 +98,42 @@ class _SignUpPageState extends State<SignUpPage> {
     return null;
   }
 
+  void _submit() {
+    if (_formKey.currentState?.validate() ?? false) {
+      _ws.signup(
+        username: _usernameController.text.trim(),
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+        onResult: (success, message) {
+          if (success) {
+            Navigator.pushReplacementNamed(
+              context,
+              '/login',
+              arguments: {
+                'username': _usernameController.text.trim(),
+                'email': _emailController.text.trim(),
+              },
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(message ?? "Signup failed")),
+            );
+          }
+        },
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    // به خاطر Singleton نباید dispose WebSocket رو اینجا صدا بزنیم
+    _usernameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -113,7 +178,8 @@ class _SignUpPageState extends State<SignUpPage> {
                   prefixIcon: const Icon(Icons.lock),
                   suffixIcon: IconButton(
                     icon: Icon(
-                        _passwordVisible ? Icons.visibility : Icons.visibility_off),
+                      _passwordVisible ? Icons.visibility : Icons.visibility_off,
+                    ),
                     onPressed: () {
                       setState(() => _passwordVisible = !_passwordVisible);
                     },
@@ -135,8 +201,7 @@ class _SignUpPageState extends State<SignUpPage> {
                           : Icons.visibility_off,
                     ),
                     onPressed: () {
-                      setState(() =>
-                      _confirmPasswordVisible = !_confirmPasswordVisible);
+                      setState(() => _confirmPasswordVisible = !_confirmPasswordVisible);
                     },
                   ),
                 ),
@@ -144,18 +209,7 @@ class _SignUpPageState extends State<SignUpPage> {
               ),
               const SizedBox(height: 24),
               ElevatedButton(
-                onPressed: () {
-                  if (_formKey.currentState?.validate() ?? false) {
-                    Navigator.pushReplacementNamed(
-                      context,
-                      '/login',
-                      arguments: {
-                        'username': _usernameController.text.trim(),
-                        'email': _emailController.text.trim(),
-                      },
-                    );
-                  }
-                },
+                onPressed: _submit,
                 child: const Text('Register'),
               ),
               const SizedBox(height: 18),

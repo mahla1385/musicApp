@@ -1,9 +1,11 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:rxdart/rxdart.dart';
 import 'audio_player_singleton.dart';
-import '../ws/music_websocket_client.dart';
+import 'SingletonWebsocket.dart';
+import 'package:path_provider/path_provider.dart';
 import '../utils/user_session.dart';
 
 class SongDetailPage extends StatefulWidget {
@@ -25,11 +27,13 @@ class SongDetailPage extends StatefulWidget {
 class _SongDetailPageState extends State<SongDetailPage> {
   late AudioPlayer _player;
   bool _isPlaying = false;
-  final ws = MusicWebSocketClient("ws://192.168.97.219:8080/ws");
+  final ws = MusicWebSocketClient();
   final TextEditingController _commentController = TextEditingController();
   List<Map<String, dynamic>> _comments = [];
   int _likes = 0;
   int _dislikes = 0;
+
+  Map<int, String> _profilePaths = {}; // userId -> profile image path cache
 
   @override
   void initState() {
@@ -40,9 +44,11 @@ class _SongDetailPageState extends State<SongDetailPage> {
     ws.listen((message) {
       final action = message['action'];
       if (action == 'get_comments_response' && message['songId'] == widget.song['id']) {
+        List<Map<String, dynamic>> comments = List<Map<String, dynamic>>.from(message['comments']);
         setState(() {
-          _comments = List<Map<String, dynamic>>.from(message['comments']);
+          _comments = comments;
         });
+        _cacheProfilePaths(comments);
       } else if (action == 'comment_added' && message['songId'] == widget.song['id']) {
         ws.getComments(widget.song['id']);
       } else if (action == 'likes_count' && message['songId'] == widget.song['id']) {
@@ -58,6 +64,26 @@ class _SongDetailPageState extends State<SongDetailPage> {
 
     _player.playerStateStream.listen((s) {
       setState(() => _isPlaying = s.playing);
+    });
+  }
+
+  Future<void> _cacheProfilePaths(List<Map<String, dynamic>> comments) async {
+    final dir = await getApplicationDocumentsDirectory();
+
+    Map<int, String> newPaths = {};
+
+    for (var c in comments) {
+      int? userId = c['userId'];
+      if (userId != null) {
+        final path = '${dir.path}/profile_$userId.png';
+        final file = File(path);
+        if (await file.exists()) {
+          newPaths[userId] = path;
+        }
+      }
+    }
+    setState(() {
+      _profilePaths = newPaths;
     });
   }
 
@@ -106,6 +132,32 @@ class _SongDetailPageState extends State<SongDetailPage> {
 
   void _deleteComment(int commentId) {
     ws.deleteComment(commentId: commentId, songId: widget.song['id']);
+  }
+
+  void _confirmDelete(int commentId) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Delete Comment"),
+        content: const Text("Are you sure you want to delete this comment?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text("No"),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _deleteComment(commentId);
+            },
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.red,
+            ),
+            child: const Text("Yes"),
+          ),
+        ],
+      ),
+    );
   }
 
   void _sendLike(bool like) {
@@ -221,15 +273,26 @@ class _SongDetailPageState extends State<SongDetailPage> {
           if (_comments.isEmpty)
             const Text('No comments yet.', style: TextStyle(color: Colors.white54))
           else
-            ..._comments.map((c) => ListTile(
-              title: Text('${c['username'] ?? 'User'}: ${c['content']}', style: const TextStyle(color: Colors.white)),
-              trailing: (UserSession.userId == c['userId'])
-                  ? IconButton(
-                icon: const Icon(Icons.delete, color: Colors.redAccent),
-                onPressed: () => _deleteComment(c['id']),
-              )
-                  : null,
-            )),
+            ..._comments.map((c) {
+              final userId = c['userId'] as int?;
+              final profilePath = userId != null ? _profilePaths[userId] : null;
+              final profileImageFile = profilePath != null ? File(profilePath) : null;
+
+              return ListTile(
+                leading: CircleAvatar(
+                  backgroundImage: profileImageFile != null ? FileImage(profileImageFile) : null,
+                  child: profileImageFile == null ? const Icon(Icons.person, color: Colors.white) : null,
+                  backgroundColor: Colors.grey[700],
+                ),
+                title: Text('${c['username'] ?? 'User'}: ${c['content']}', style: const TextStyle(color: Colors.white)),
+                trailing: (UserSession.userId == userId)
+                    ? IconButton(
+                  icon: const Icon(Icons.delete, color: Colors.greenAccent),
+                  onPressed: () => _confirmDelete(c['id']),
+                )
+                    : null,
+              );
+            }),
         ],
       ),
     );

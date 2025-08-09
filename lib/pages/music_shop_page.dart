@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'page-song-detail.dart';
+import 'free-song-download-page.dart';
 import 'page-song-puchase.dart';
+import '../utils/user_session.dart';
 
 class MusicShopPage extends StatefulWidget {
   const MusicShopPage({super.key});
@@ -10,26 +11,87 @@ class MusicShopPage extends StatefulWidget {
 }
 
 class _MusicShopPageState extends State<MusicShopPage> {
-  final List<String> categories = ['Iranian', 'International', 'Local', 'Newest'];
+  final List<String> categories = ['Iranian', 'International', 'Local'];
   String selectedCategory = 'Iranian';
 
   final Map<String, List<Map<String, dynamic>>> songsByCategory = {
     'Iranian': [
-      {'title': 'Persian Classic', 'artist': 'Singer A', 'price': 0, 'cover': 'assets/images/default_cover.png'},
-      {'title': 'Love Melody', 'artist': 'Singer B', 'price': 5000, 'cover': 'assets/images/default_cover.png'},
+      {
+        'id': 1,
+        'title': 'Persian Classic',
+        'artist': 'Singer A',
+        'price': 0,
+        'cover': 'assets/images/Screenshot-2025-04-15-121400.jpg',
+        'url': 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
+      },
+      {
+        'id': 2,
+        'title': 'Love Melody',
+        'artist': 'Singer B',
+        'price': 5000,
+        'cover': 'assets/images/Screenshot-2025-04-15-121400.jpg',
+      },
     ],
     'International': [
-      {'title': 'Global Vibe', 'artist': 'Artist X', 'price': 0, 'cover': 'assets/images/default_cover.png'},
+      {
+        'id': 3,
+        'title': 'Global Vibe',
+        'artist': 'Artist X',
+        'price': 0,
+        'cover': 'assets/images/Screenshot-2025-04-15-121400.jpg',
+        'url': 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
+      },
     ],
     'Local': [
-      {'title': 'Folk Tune', 'artist': 'Local Star', 'price': 3000, 'cover': 'assets/images/default_cover.png'},
+      {
+        'id': 4,
+        'title': 'Folk Tune',
+        'artist': 'Local Star',
+        'price': 3000,
+        'cover': 'assets/images/Screenshot-2025-04-15-121400.jpg',
+      },
     ],
-    'Newest': [
-      {'title': 'Brand New Hit', 'artist': 'Pop Icon', 'price': 10000, 'cover': 'assets/images/default_cover.png'},
-    ]
   };
 
   int _navIndex = 1;
+
+  Future<bool> hasPurchased(int userId, int songId) async {
+    await Future.delayed(Duration(milliseconds: 500));
+    return songId == 2 || songId == 4;
+  }
+
+  String getSongDownloadUrl(int songId) {
+    return 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-$songId.mp3';
+  }
+
+  void handleSongTap(Map<String, dynamic> song) async {
+    final int price = song['price'] ?? 0;
+    final int songId = song['id'] ?? 0;
+    final userId = UserSession.userId;
+
+    if (price == 0) {
+      if (song.containsKey('url')) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => FreeSongDownloadPage(song: song)),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Download URL not found for free song.")),
+        );
+      }
+    } else {
+      bool alreadyPurchased = await hasPurchased(userId!, songId);
+
+      if (alreadyPurchased) {
+        song['url'] = getSongDownloadUrl(songId);
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => FreeSongDownloadPage(song: song)),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -38,6 +100,14 @@ class _MusicShopPageState extends State<MusicShopPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Music Shop'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.home),
+            onPressed: () {
+              Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
+            },
+          ),
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(48),
           child: SizedBox(
@@ -69,41 +139,28 @@ class _MusicShopPageState extends State<MusicShopPage> {
         itemCount: songs.length,
         itemBuilder: (context, index) {
           final song = songs[index];
+          final int price = song['price'] is int ? song['price'] : 0;
+
           return Card(
             elevation: 2,
             margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
             child: ListTile(
-              leading: Icon(Icons.music_video, color: Colors.cyan[600], size: 36),
-              title: Text(song['title']),
-              subtitle: Text(song['artist']),
+              leading: Image.asset(
+                song['cover'] ?? 'assets/images/Screenshot-2025-04-15-121400.jpg',
+                width: 40,
+                height: 40,
+                fit: BoxFit.cover,
+              ),
+              title: Text(song['title'] ?? 'Unknown'),
+              subtitle: Text(song['artist'] ?? 'Unknown'),
               trailing: Text(
-                song['price'] == 0 ? 'Free' : '${song['price']} Toman',
+                price == 0 ? 'Free' : '$price Toman',
                 style: TextStyle(
-                  color: song['price'] == 0 ? Colors.cyan : Colors.grey[800],
+                  color: price == 0 ? Colors.cyan : Colors.grey[800],
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              onTap: () {
-                if (song['price'] > 0) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => SongPurchasePage(song: song),
-                    ),
-                  );
-                } else {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => SongDetailPage(
-                        song: song,
-                        favorites: const [],
-                        onLike: (s) {},
-                      ),
-                    ),
-                  );
-                }
-              },
+              onTap: () => handleSongTap(song),
             ),
           );
         },

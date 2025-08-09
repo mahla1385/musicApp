@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'forgot_password_page.dart';
-import '../utils//user_session.dart';
+import '../utils/user_session.dart';
+import 'SingletonWebsocket.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -16,7 +17,8 @@ class _LoginPageState extends State<LoginPage> {
   final _passwordController = TextEditingController();
   bool _passwordVisible = false;
 
-  bool _isPremium = false;
+  // استفاده از Singleton
+  final MusicWebSocketClient _ws = MusicWebSocketClient();
 
   @override
   void didChangeDependencies() {
@@ -34,42 +36,60 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   String? _validateEmail(String? value) {
-    if (value == null || value.isEmpty) {
-      return 'Email is required';
-    }
+    if (value == null || value.isEmpty) return 'Email is required';
     final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
-    if (!emailRegex.hasMatch(value)) {
-      return 'Enter a valid email';
-    }
+    if (!emailRegex.hasMatch(value)) return 'Enter a valid email';
     return null;
   }
 
   String? _validatePassword(String? value) {
-    if (value == null || value.isEmpty) {
-      return 'Password is required';
-    }
-    if (value.length < 8) {
-      return 'Password must be at least 8 characters';
-    }
-    final hasUpper = RegExp(r'[A-Z]');
-    final hasLower = RegExp(r'[a-z]');
-    final hasDigit = RegExp(r'\d');
-    if (!hasUpper.hasMatch(value)) {
-      return 'Password must contain at least one uppercase letter';
-    }
-    if (!hasLower.hasMatch(value)) {
-      return 'Password must contain at least one lowercase letter';
-    }
-    if (!hasDigit.hasMatch(value)) {
-      return 'Password must contain at least one digit';
-    }
+    if (value == null || value.isEmpty) return 'Password is required';
+    if (value.length < 8) return 'Password must be at least 8 characters';
+    if (!RegExp(r'[A-Z]').hasMatch(value)) return 'Must have uppercase letter';
+    if (!RegExp(r'[a-z]').hasMatch(value)) return 'Must have lowercase letter';
+    if (!RegExp(r'\d').hasMatch(value)) return 'Must have a digit';
     return null;
+  }
+
+  void _performLogin() {
+    if (_formKey.currentState?.validate() ?? false) {
+      _ws.login(
+        username: _usernameController.text.trim(),
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+        onResult: (success, data, message) {
+          if (success && data != null) {
+            UserSession.setUser(
+              id: data["id"],
+              name: data["username"],
+              mail: data["email"],
+              isPremium: data["isPremium"] ?? false,
+            );
+            Navigator.pushReplacementNamed(context, '/home');
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(message ?? "Login failed. Please check credentials.")),
+            );
+          }
+        },
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Login')),
+      appBar: AppBar(
+        title: const Text('Login'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.home),
+            onPressed: () {
+              Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
+            },
+          ),
+        ],
+      ),
       body: Padding(
         padding: const EdgeInsets.all(24.0),
         child: Form(
@@ -110,35 +130,14 @@ class _LoginPageState extends State<LoginPage> {
                   prefixIcon: const Icon(Icons.lock),
                   suffixIcon: IconButton(
                     icon: Icon(
-                        _passwordVisible ? Icons.visibility : Icons.visibility_off),
+                      _passwordVisible ? Icons.visibility : Icons.visibility_off,
+                    ),
                     onPressed: () {
                       setState(() => _passwordVisible = !_passwordVisible);
                     },
                   ),
                 ),
                 validator: _validatePassword,
-              ),
-              const SizedBox(height: 18),
-              const Text('Account Type:', style: TextStyle(fontWeight: FontWeight.bold)),
-              RadioListTile<bool>(
-                title: const Text('Free'),
-                value: false,
-                groupValue: _isPremium,
-                onChanged: (val) {
-                  setState(() {
-                    _isPremium = val!;
-                  });
-                },
-              ),
-              RadioListTile<bool>(
-                title: const Text('Premium'),
-                value: true,
-                groupValue: _isPremium,
-                onChanged: (val) {
-                  setState(() {
-                    _isPremium = val!;
-                  });
-                },
               ),
               const SizedBox(height: 10),
               Align(
@@ -147,7 +146,7 @@ class _LoginPageState extends State<LoginPage> {
                   onPressed: () async {
                     final result = await Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => ForgotPasswordPage()),
+                      MaterialPageRoute(builder: (_) => const ForgotPasswordPage()),
                     );
                     if (result != null && result is Map<String, String>) {
                       _emailController.text = result['email'] ?? '';
@@ -159,26 +158,7 @@ class _LoginPageState extends State<LoginPage> {
               ),
               const SizedBox(height: 20),
               ElevatedButton(
-                onPressed: () {
-                  if (_formKey.currentState?.validate() ?? false) {
-                    UserSession.setUser(
-                      id: 1,
-                      name: _usernameController.text.trim(),
-                      mail: _emailController.text.trim(),
-                      isPremium: _isPremium,
-                    );
-
-                    Navigator.pushReplacementNamed(
-                      context,
-                      '/home',
-                      arguments: {
-                        'username': _usernameController.text.trim(),
-                        'email': _emailController.text.trim(),
-                        'premium': _isPremium,
-                      },
-                    );
-                  }
-                },
+                onPressed: _performLogin,
                 child: const Text('Login'),
               ),
               const SizedBox(height: 16),

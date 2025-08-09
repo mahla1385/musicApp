@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
 class PaymentPage extends StatefulWidget {
-  const PaymentPage({super.key});
+  final int songId;
+  final int price;
+
+  const PaymentPage({super.key, required this.songId, required this.price});
 
   @override
   State<PaymentPage> createState() => _PaymentPageState();
@@ -11,7 +14,6 @@ class _PaymentPageState extends State<PaymentPage> {
   final _formKey = GlobalKey<FormState>();
   String cardNumber = '';
   String pin = '';
-  String amount = '';
 
   void _submitPayment() {
     if (_formKey.currentState!.validate()) {
@@ -20,12 +22,15 @@ class _PaymentPageState extends State<PaymentPage> {
       showDialog(
         context: context,
         builder: (_) => AlertDialog(
-          title: const Text('Payment Successful!'),
-          content: Text('Amount of $amount Toman from card $cardNumber was paid.'),
+          title: const Text('Payment Successful'),
+          content: Text('${widget.price} Toman was paid from card $cardNumber.'),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('OK'),
+              onPressed: () {
+                Navigator.pop(context); // close dialog
+                Navigator.pop(context, widget.songId); // return to previous page with songId
+              },
+              child: const Text('Continue'),
             ),
           ],
         ),
@@ -36,7 +41,9 @@ class _PaymentPageState extends State<PaymentPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Payment')),
+      appBar: AppBar(
+        title: const Text('Payment'),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(24.0),
         child: Form(
@@ -68,21 +75,10 @@ class _PaymentPageState extends State<PaymentPage> {
                 value == null || value.length != 4 ? 'PIN must be 4 digits' : null,
                 onSaved: (value) => pin = value!,
               ),
-              const SizedBox(height: 16),
-              TextFormField(
-                decoration: const InputDecoration(
-                  labelText: 'Payment Amount (Toman)',
-                  prefixIcon: Icon(Icons.attach_money),
-                ),
-                keyboardType: TextInputType.number,
-                validator: (value) =>
-                value == null || value.isEmpty ? 'Please enter the amount' : null,
-                onSaved: (value) => amount = value!,
-              ),
               const SizedBox(height: 32),
               ElevatedButton.icon(
                 icon: const Icon(Icons.payment),
-                label: const Text('Pay'),
+                label: Text('Pay ${widget.price} Toman'),
                 onPressed: _submitPayment,
               ),
             ],
