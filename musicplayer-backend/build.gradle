@@ -1,0 +1,32 @@
+
+plugins {
+    id 'org.springframework.boot' version '2.7.18'
+    id 'io.spring.dependency-management' version '1.0.15.RELEASE'
+    id 'java'
+}
+
+
+group 'com.example'
+version '1.0-SNAPSHOT'
+
+repositories {
+    maven { url 'https://maven.aliyun.com/nexus/content/groups/public/' }  // سریع و بدون تحریم
+    maven { url 'https://repo1.maven.org/maven2/' }                        // نسخه مستقیم
+    mavenCentral()                                                        // مخزن رسمی
+}
+
+
+
+dependencies {
+    implementation 'com.google.code.gson:gson:2.10.1'
+    implementation 'org.glassfish.tyrus.bundles:tyrus-standalone-client:2.1.1'
+    implementation 'mysql:mysql-connector-java:8.0.32'
+    implementation 'org.glassfish.tyrus:tyrus-server:2.1.1'
+    implementation 'org.glassfish.tyrus:tyrus-container-grizzly-server:2.1.1'
+    implementation 'jakarta.websocket:jakarta.websocket-api:2.1.1'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
+}
